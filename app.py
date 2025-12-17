@@ -429,7 +429,7 @@ elif detection_mode == "🎥 Video":
                 out.write(annotated_frame)
                 
                 # Count
-                  for box in results[0].boxes:
+                for box in results[0].boxes:
                     class_name = results[0].names[int(box.cls[0])].lower()
                     if class_name in ['helmet', 'with helmet']:
                         with_h_total += 1
