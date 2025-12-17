@@ -15,7 +15,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# CSS
+# CSS - Enhanced
 st.markdown("""
 <style>
     .main {
@@ -27,6 +27,7 @@ st.markdown("""
         text-align: center;
         font-size: 3em;
         text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        animation: fadeIn 1s;
     }
     .subtitle {
         text-align: center;
@@ -34,213 +35,537 @@ st.markdown("""
         font-size: 1.2em;
         margin-bottom: 30px;
     }
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(-20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .metric-card {
+        background: rgba(255,255,255,0.1);
+        border-radius: 10px;
+        padding: 10px;
+        backdrop-filter: blur(10px);
+    }
 </style>
 """, unsafe_allow_html=True)
 
 st.title("🏍️ Helmet Detection System")
 st.markdown('<p class="subtitle">🎓 Tugas Besar AI | YOLOv8 + Real-time Webcam</p>', unsafe_allow_html=True)
 
-# Sidebar
+# Sidebar - Enhanced
 with st.sidebar:
-    st.header("⚙️ Settings")
-    detection_mode = st.radio("Mode", ["📷 Image", "🎥 Video", "📹 Webcam"])
-    confidence = st.slider("Confidence", 0.0, 1.0, 0.5, 0.05)
-
+    st.header("⚙️ Control Panel")
+    
+    detection_mode = st.radio(
+        "📍 Detection Mode",
+        ["📷 Image", "🎥 Video", "📹 Webcam"],
+        help="Pilih mode input"
+    )
+    
     st.markdown("---")
-    with st.expander("ℹ️ About"):
+    
+    # Advanced settings
+    with st.expander("🎚️ Advanced Settings"):
+        confidence = st.slider(
+            "Confidence Threshold",
+            0.0, 1.0, 0.5, 0.05,
+            help="Semakin tinggi = lebih strict (lebih sedikit false positive)"
+        )
+        
+        iou_threshold = st.slider(
+            "IOU Threshold",
+            0.0, 1.0, 0.45, 0.05,
+            help="Untuk menghilangkan duplikat deteksi"
+        )
+        
+        image_size = st.select_slider(
+            "Image Size (inference)",
+            options=[320, 416, 640, 800, 1024],
+            value=640,
+            help="Lebih besar = lebih akurat tapi lebih lambat"
+        )
+    
+    st.markdown("---")
+    
+    with st.expander("ℹ️ About System"):
         st.write("""
         **Helmet Detection AI**
-
-        - Model: YOLOv8 Nano
+        
+        🎯 **Model:**
+        - Algorithm: YOLOv8 Nano
         - Training: 150 epochs
         - Classes: helmet, no helmet
-        - Accuracy: 85%+
-
-        **Features:**
+        - Target Accuracy: 85%+
+        
+        ✨ **Features:**
         - ✅ Image detection
-        - ✅ Video processing
+        - ✅ Video processing (H.264)
         - ✅ Webcam real-time
-
-        **Team:**
+        - ✅ Advanced settings
+        - ✅ Download results
+        
+        👥 **Team:**
         - Chairani Nayu Nainggolan
         - Esa Canoe Alvian Karim
         - Dary Ibrahim Akram
-
-        Politeknik Negeri Indramayu
+        
+        🏫 Politeknik Negeri Indramayu
+        📚 Kecerdasan Buatan - Semester 5
         """)
-
+    
+    st.markdown("---")
     st.success("🟢 System Online")
+    st.info(f"🎯 Confidence: {int(confidence*100)}%")
 
-# Load model
+# Load model with caching
 @st.cache_resource
 def load_model():
-    return YOLO('best.pt')
+    try:
+        model = YOLO('best.pt')
+        return model
+    except Exception as e:
+        st.error(f"❌ Model loading failed: {e}")
+        return None
 
-with st.spinner("Loading model..."):
+with st.spinner("🔄 Loading AI model..."):
     model = load_model()
 
+if model is None:
+    st.error("❌ Cannot load model! Pastikan file 'best.pt' ada di folder yang sama.")
+    st.stop()
+
 # ============================================================
-# MODE 1: IMAGE
+# MODE 1: IMAGE DETECTION (IMPROVED)
 # ============================================================
 if detection_mode == "📷 Image":
-    st.markdown("## 📷 Image Detection")
-
-    uploaded = st.file_uploader("Upload Image", type=['jpg','jpeg','png'])
-
+    st.markdown("## 📷 Image Detection Mode")
+    
+    # File uploader
+    uploaded = st.file_uploader(
+        "Choose an image...",
+        type=['jpg', 'jpeg', 'png'],
+        help="Upload gambar pengendara motor (JPG, JPEG, PNG)"
+    )
+    
     if uploaded:
         col1, col2 = st.columns(2)
-
+        
         with col1:
-            st.subheader("📸 Original")
+            st.markdown("### 📸 Original Image")
             img = Image.open(uploaded)
             st.image(img, use_container_width=True)
-
-        with st.spinner("🔍 Detecting..."):
-            results = model(np.array(img), conf=confidence, verbose=False)
-            annotated = Image.fromarray(cv2.cvtColor(results[0].plot(), cv2.COLOR_BGR2RGB))
-
+            st.caption(f"Size: {img.size[0]}x{img.size[1]} pixels")
+        
+        with st.spinner("🔍 Analyzing image..."):
+            # Run detection with custom settings
+            results = model(
+                np.array(img),
+                conf=confidence,
+                iou=iou_threshold,
+                imgsz=image_size,
+                verbose=False
+            )
+            
+            # Get annotated image
+            annotated = Image.fromarray(
+                cv2.cvtColor(results[0].plot(), cv2.COLOR_BGR2RGB)
+            )
+        
         with col2:
-            st.subheader("🎯 Results")
+            st.markdown("### 🎯 Detection Results")
             st.image(annotated, use_container_width=True)
-
+            
+            # Show detection count
+            total_detections = len(results[0].boxes)
+            st.caption(f"Total detections: {total_detections}")
+        
+        # Statistics section
         st.markdown("---")
-        st.subheader("📊 Statistics")
-
+        st.markdown("## 📊 Detection Statistics")
+        
         with_h = without_h = 0
         confidences = []
-
-        for box in results[0].boxes:
+        detections_list = []
+        
+        for idx, box in enumerate(results[0].boxes):
             cls = int(box.cls[0])
             conf = float(box.conf[0])
             class_name = results[0].names[cls]
+            bbox = box.xyxy[0].cpu().numpy()
+            
             confidences.append(conf)
-
+            detections_list.append({
+                'id': idx + 1,
+                'class': class_name,
+                'confidence': f"{conf*100:.1f}%",
+                'bbox': f"({int(bbox[0])}, {int(bbox[1])}, {int(bbox[2])}, {int(bbox[3])})"
+            })
+            
             if class_name == 'helmet':
                 with_h += 1
             elif class_name == 'no helmet':
                 without_h += 1
-
-        c1,c2,c3,c4 = st.columns(4)
-        c1.metric("✅ With Helmet", with_h)
-        c2.metric("❌ Without Helmet", without_h)
-        c3.metric("📍 Total", with_h + without_h)
-        c4.metric("🎯 Avg Conf", f"{int(np.mean(confidences)*100) if confidences else 0}%")
-
+        
+        # Metrics cards
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric(
+                "✅ With Helmet",
+                with_h,
+                help="Jumlah pengendara memakai helm"
+            )
+        
+        with col2:
+            st.metric(
+                "❌ Without Helmet",
+                without_h,
+                delta=f"-{without_h}" if without_h > 0 else "Good!",
+                delta_color="inverse",
+                help="Jumlah pengendara TIDAK memakai helm"
+            )
+        
+        with col3:
+            st.metric(
+                "📍 Total Detected",
+                with_h + without_h,
+                help="Total pengendara terdeteksi"
+            )
+        
+        with col4:
+            avg_conf = np.mean(confidences) if confidences else 0
+            st.metric(
+                "🎯 Avg Confidence",
+                f"{int(avg_conf*100)}%",
+                help="Rata-rata confidence score"
+            )
+        
+        # Compliance rate
         if (with_h + without_h) > 0:
             compliance = (with_h / (with_h + without_h)) * 100
+            
+            st.markdown("### 📈 Helmet Compliance Rate")
             st.progress(compliance / 100)
-
+            
             if compliance >= 80:
-                st.success(f"🎉 {compliance:.1f}% compliance")
+                st.success(f"🎉 Excellent! {compliance:.1f}% compliance rate")
             elif compliance >= 50:
-                st.warning(f"⚠️ {compliance:.1f}% compliance")
+                st.warning(f"⚠️ Moderate: {compliance:.1f}% compliance rate")
             else:
-                st.error(f"❌ {compliance:.1f}% compliance")
+                st.error(f"❌ Poor: {compliance:.1f}% compliance - Need enforcement!")
+        
+        # Detailed detections table
+        if detections_list:
+            st.markdown("---")
+            st.markdown("### 🔍 Detailed Detections")
+            
+            import pandas as pd
+            df = pd.DataFrame(detections_list)
+            st.dataframe(df, use_container_width=True)
+        
+        # Download section
+        st.markdown("---")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            buf = io.BytesIO()
+            annotated.save(buf, format='PNG')
+            st.download_button(
+                label="💾 Download Result Image",
+                data=buf.getvalue(),
+                file_name="helmet_detection_result.png",
+                mime="image/png",
+                use_container_width=True
+            )
+        
+        with col2:
+            # Save statistics to text
+            stats_text = f"""HELMET DETECTION RESULTS
+========================
+With Helmet: {with_h}
+Without Helmet: {without_h}
+Total: {with_h + without_h}
+Compliance Rate: {compliance:.1f}%
+Avg Confidence: {avg_conf*100:.1f}%
 
-        buf = io.BytesIO()
-        annotated.save(buf, format='PNG')
-        st.download_button("💾 Download", buf.getvalue(), "result.png", "image/png")
+Settings:
+- Confidence Threshold: {confidence}
+- IOU Threshold: {iou_threshold}
+- Image Size: {image_size}
+"""
+            st.download_button(
+                label="📄 Download Statistics",
+                data=stats_text,
+                file_name="detection_stats.txt",
+                mime="text/plain",
+                use_container_width=True
+            )
+    
     else:
-        st.info("👆 Upload gambar untuk mulai deteksi")
+        st.info("👆 Upload gambar untuk memulai deteksi")
+        st.markdown("""
+        **💡 Tips untuk hasil terbaik:**
+        - Gunakan gambar dengan resolusi minimal 640x640
+        - Pastikan pengendara terlihat jelas
+        - Hindari gambar blur atau gelap
+        - Multiple riders OK - akan dideteksi semua
+        """)
 
 # ============================================================
-# MODE 2: VIDEO (FIX - BISA DI-PLAY!)
+# MODE 2: VIDEO DETECTION (IMPROVED)
 # ============================================================
 elif detection_mode == "🎥 Video":
-    st.markdown("## 🎥 Video Detection")
-    uploaded = st.file_uploader("Upload Video", type=['mp4','avi','mov'])
+    st.markdown("## 🎥 Video Detection Mode")
+    
+    uploaded = st.file_uploader(
+        "Upload video...",
+        type=['mp4', 'avi', 'mov'],
+        help="Format: MP4, AVI, MOV (max 2 menit recommended)"
+    )
     
     if uploaded:
-        # Simpan video upload ke file sementara
+        # Save to temp
         tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
         tfile.write(uploaded.read())
+        tfile.close()
         
-        if st.button("🚀 Process Video"):
-            status = st.empty()
-            progress = st.progress(0)
+        st.markdown("### 📹 Original Video")
+        st.video(tfile.name)
+        
+        # Get video info
+        cap = cv2.VideoCapture(tfile.name)
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        fps = int(cap.get(cv2.CAP_PROP_FPS))
+        duration = total_frames / fps if fps > 0 else 0
+        cap.release()
+        
+        st.caption(f"📊 Duration: {duration:.1f}s | Frames: {total_frames} | FPS: {fps}")
+        
+        # Processing options
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            process_btn = st.button(
+                "🚀 Process Video",
+                type="primary",
+                use_container_width=True
+            )
+        
+        with col2:
+            speed_mode = st.selectbox(
+                "Speed Mode",
+                ["Fast (skip 2)", "Normal (skip 1)", "Quality (all frames)"],
+                help="Fast: lebih cepat tapi skip beberapa frame"
+            )
+        
+        with col3:
+            output_size = st.selectbox(
+                "Output Size",
+                ["640x360 (Fast)", "854x480 (Medium)", "1280x720 (HD)"],
+                index=1
+            )
+        
+        if process_btn:
+            progress_bar = st.progress(0)
+            status_text = st.empty()
             
+            # Parse settings
+            if "Fast" in speed_mode:
+                frame_skip = 2
+            elif "Normal" in speed_mode:
+                frame_skip = 1
+            else:
+                frame_skip = 0
+            
+            if "640x360" in output_size:
+                out_w, out_h = 640, 360
+            elif "854x480" in output_size:
+                out_w, out_h = 854, 480
+            else:
+                out_w, out_h = 1280, 720
+            
+            # Open video
             cap = cv2.VideoCapture(tfile.name)
-            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            fps = int(cap.get(cv2.CAP_PROP_FPS))
-            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
             
-            # File sementara untuk hasil mentah (AVI)
+            # Temp output
             temp_avi = tempfile.NamedTemporaryFile(delete=False, suffix='.avi').name
             fourcc = cv2.VideoWriter_fourcc(*'XVID')
-            out = cv2.VideoWriter(temp_avi, fourcc, fps, (640, 360)) # Resize ke 640x360 agar RAM aman
+            out = cv2.VideoWriter(temp_avi, fourcc, fps, (out_w, out_h))
             
-            count = 0
+            # Statistics
+            with_h_total = 0
+            without_h_total = 0
+            frame_count = 0
+            
+            status_text.text("🔄 Processing frames...")
+            
             while cap.isOpened():
                 ret, frame = cap.read()
-                if not ret: break
+                if not ret:
+                    break
                 
-                # Resize & Detect
-                frame = cv2.resize(frame, (640, 360))
-                results = model(frame, conf=confidence, verbose=False)
+                frame_count += 1
+                
+                # Resize
+                frame = cv2.resize(frame, (out_w, out_h))
+                
+                # Skip frames
+                if frame_skip > 0 and frame_count % (frame_skip + 1) != 0:
+                    out.write(frame)
+                    progress_bar.progress(min(frame_count / total_frames * 0.8, 0.8))
+                    continue
+                
+                # Detect
+                results = model(
+                    frame,
+                    conf=confidence,
+                    iou=iou_threshold,
+                    imgsz=image_size,
+                    verbose=False
+                )
+                
                 annotated_frame = results[0].plot()
-                
                 out.write(annotated_frame)
-                count += 1
-                progress.progress(count / total_frames)
-                status.text(f"Processing frame {count}/{total_frames}...")
+                
+                # Count
+                for box in results[0].boxes:
+                    class_name = results[0].names[int(box.cls[0])]
+                    if class_name == 'helmet':
+                        with_h_total += 1
+                    elif class_name == 'no helmet':
+                        without_h_total += 1
+                
+                progress_bar.progress(min(frame_count / total_frames * 0.8, 0.8))
+                status_text.text(f"Processing frame {frame_count}/{total_frames}")
             
             cap.release()
             out.release()
             
-            # --- TAHAP KRUSIAL: KONVERSI KE MP4 (H.264) AGAR BISA DI-PLAY ---
-            status.text("🔄 Mengonversi format agar bisa diputar di browser...")
+            # Convert to H264
+            status_text.text("🔄 Converting to browser-compatible format...")
+            progress_bar.progress(0.85)
+            
             final_mp4 = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4').name
             
-            # Jalankan FFMPEG
-            cmd = f'ffmpeg -y -i "{temp_avi}" -c:v libx264 -pix_fmt yuv420p "{final_mp4}"'
-            subprocess.run(cmd, shell=True)
+            try:
+                cmd = [
+                    'ffmpeg', '-y', '-i', temp_avi,
+                    '-c:v', 'libx264',
+                    '-preset', 'fast',
+                    '-crf', '23',
+                    '-pix_fmt', 'yuv420p',
+                    final_mp4
+                ]
+                subprocess.run(cmd, check=True, capture_output=True)
+                progress_bar.progress(1.0)
+                status_text.text("✅ Processing complete!")
+            except:
+                st.warning("⚠️ FFmpeg conversion skipped")
+                final_mp4 = temp_avi
+                progress_bar.progress(1.0)
             
-            status.text("✅ Selesai! Menampilkan video...")
+            st.success("🎉 Video processing completed!")
             
-            # Tampilkan Video
+            # Results
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("### 🎬 Processed Video")
+                with open(final_mp4, 'rb') as f:
+                    st.video(f.read())
+            
+            with col2:
+                st.markdown("### 📊 Video Statistics")
+                
+                st.metric("✅ With Helmet (detections)", with_h_total)
+                st.metric("❌ Without Helmet (detections)", without_h_total)
+                
+                total_det = with_h_total + without_h_total
+                if total_det > 0:
+                    comp_rate = (with_h_total / total_det) * 100
+                    st.metric("📈 Overall Compliance", f"{comp_rate:.1f}%")
+                    st.progress(comp_rate / 100)
+                
+                st.info(f"📹 Processed {frame_count} frames")
+            
+            # Download
+            st.markdown("---")
             with open(final_mp4, 'rb') as f:
-                video_bytes = f.read()
-                st.video(video_bytes)
-            
-            # Tombol Download
-            st.download_button("💾 Download Hasil Video", video_bytes, "hasil_deteksi.mp4", "video/mp4")
+                st.download_button(
+                    "💾 Download Processed Video",
+                    f.read(),
+                    "helmet_detection_video.mp4",
+                    "video/mp4",
+                    use_container_width=True
+                )
+    
+    else:
+        st.info("👆 Upload video untuk memulai deteksi")
+        st.markdown("""
+        **💡 Tips:**
+        - Video max 2-3 menit untuk hasil optimal
+        - Gunakan "Fast" mode untuk video panjang
+        - Output size lebih kecil = processing lebih cepat
+        """)
 
 # ============================================================
-# MODE 3: WEBCAM REAL-TIME
+# MODE 3: WEBCAM (IMPROVED)
 # ============================================================
 else:
     st.markdown("## 📹 Webcam Real-time Detection")
     
-    # Import khusus di sini agar tidak berat saat start-up
     from streamlit_webrtc import webrtc_streamer, WebRtcMode, RTCConfiguration
     import av
-
+    
+    st.warning("""
+    ⚠️ **Requirements:**
+    - Browser: Chrome atau Edge (recommended)
+    - Permission: Allow camera access
+    - Close other apps using webcam
+    """)
+    
     RTC_CONFIGURATION = RTCConfiguration(
         {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
     )
-
+    
+    # Webcam callback
     def video_frame_callback(frame):
         img = frame.to_ndarray(format="bgr24")
         
-        # Jalankan deteksi YOLO (Gunakan variabel model yang sudah di-load di atas)
-        results = model(img, conf=confidence, verbose=False)
-        annotated_frame = results[0].plot()
+        # Detect with custom settings
+        results = model(
+            img,
+            conf=confidence,
+            iou=iou_threshold,
+            verbose=False
+        )
         
+        annotated_frame = results[0].plot()
         return av.VideoFrame.from_ndarray(annotated_frame, format="bgr24")
-
-    st.info("Klik 'Start' di bawah untuk mengaktifkan kamera laptop Anda.")
-
-    webrtc_streamer(
-        key="helmet-detection",
+    
+    # Start webcam
+    st.info("🎥 Klik 'START' untuk mengaktifkan webcam")
+    
+    webrtc_ctx = webrtc_streamer(
+        key="helmet-webcam-detection",
         mode=WebRtcMode.SENDRECV,
         rtc_configuration=RTC_CONFIGURATION,
         video_frame_callback=video_frame_callback,
         media_stream_constraints={"video": True, "audio": False},
         async_processing=True,
     )
-
-    st.write("Catatan: Pastikan browser memberikan izin (allow) akses kamera.")
+    
+    if webrtc_ctx.state.playing:
+        st.success("✅ Webcam active - Real-time detection running!")
+    
+    st.markdown("---")
+    st.info("""
+    💡 **Tips Webcam:**
+    - Arahkan ke foto/gambar pengendara motor
+    - Test dengan teman yang pakai/tidak pakai helm
+    - Jarak optimal: 1-3 meter
+    - Pastikan pencahayaan cukup
+    - Gerakan pelan untuk hasil lebih stabil
+    """)
 
 # ============================================================
 # FOOTER
