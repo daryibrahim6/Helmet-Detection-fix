@@ -200,9 +200,9 @@ if detection_mode == "📷 Image":
                 'bbox': f"({int(bbox[0])}, {int(bbox[1])}, {int(bbox[2])}, {int(bbox[3])})"
             })
             
-            if class_name == 'helmet':
+            if class_name == ['helmet', 'with helmet']:
                 with_h += 1
-            elif class_name == 'no helmet':
+            elif class_name == ['no helmet', 'without helmet']:
                 without_h += 1
         
         # Metrics cards
@@ -429,9 +429,9 @@ elif detection_mode == "🎥 Video":
                 # Count
                 for box in results[0].boxes:
                     class_name = results[0].names[int(box.cls[0])]
-                    if class_name == 'helmet':
+                    if class_name == ['helmet', 'with helmet']:
                         with_h_total += 1
-                    elif class_name == 'no helmet':
+                    elif class_name == ['no helmet', 'without helmet']:
                         without_h_total += 1
                 
                 progress_bar.progress(min(frame_count / total_frames * 0.8, 0.8))
