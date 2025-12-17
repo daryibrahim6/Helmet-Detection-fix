@@ -302,105 +302,36 @@ elif detection_mode == "🎥 Video":
 # ============================================================
 else:
     st.markdown("## 📹 Webcam Real-time Detection")
+    
+    # Import khusus di sini agar tidak berat saat start-up
+    from streamlit_webrtc import webrtc_streamer, WebRtcMode, RTCConfiguration
+    import av
 
-    st.warning("""
-    ⚠️ **PENTING untuk Webcam:**
-    - Gunakan Chrome atau Edge
-    - Allow camera permission
-    - Tutup aplikasi lain yang pakai webcam
-    - Klik START untuk mulai
-    """)
+    RTC_CONFIGURATION = RTCConfiguration(
+        {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
+    )
 
-    # Webcam controls
-    col1, col2, col3 = st.columns([2,1,1])
+    def video_frame_callback(frame):
+        img = frame.to_ndarray(format="bgr24")
+        
+        # Jalankan deteksi YOLO (Gunakan variabel model yang sudah di-load di atas)
+        results = model(img, conf=confidence, verbose=False)
+        annotated_frame = results[0].plot()
+        
+        return av.VideoFrame.from_ndarray(annotated_frame, format="bgr24")
 
-    with col1:
-        start_webcam = st.button("🎥 START WEBCAM", type="primary", use_container_width=True)
+    st.info("Klik 'Start' di bawah untuk mengaktifkan kamera laptop Anda.")
 
-    with col2:
-        stop_webcam = st.button("⏹️ STOP", use_container_width=True)
+    webrtc_streamer(
+        key="helmet-detection",
+        mode=WebRtcMode.SENDRECV,
+        rtc_configuration=RTC_CONFIGURATION,
+        video_frame_callback=video_frame_callback,
+        media_stream_constraints={"video": True, "audio": False},
+        async_processing=True,
+    )
 
-    with col3:
-        webcam_fps = st.selectbox("FPS", [10, 15, 30], index=1)
-
-    # Placeholders
-    frame_placeholder = st.empty()
-    stats_placeholder = st.empty()
-
-    if start_webcam and not stop_webcam:
-        cap = cv2.VideoCapture(0)
-
-        if not cap.isOpened():
-            st.error("❌ Cannot access webcam!")
-            st.info("""
-            Possible solutions:
-            - Close other apps using webcam
-            - Refresh page and allow camera permission
-            - Try different browser (Chrome recommended)
-            """)
-        else:
-            st.success("✅ Webcam is active!")
-
-            with_h_total = 0
-            without_h_total = 0
-            frame_count = 0
-
-            # Set FPS
-            frame_skip = max(1, 30 // webcam_fps)
-
-            while cap.isOpened() and not stop_webcam:
-                ret, frame = cap.read()
-                if not ret:
-                    st.error("❌ Failed to read from webcam")
-                    break
-
-                frame_count += 1
-
-                # Process every Nth frame for performance
-                if frame_count % frame_skip == 0:
-                    # Run detection
-                    results = model(frame, conf=confidence, verbose=False)
-                    annotated = results[0].plot()
-
-                    # Count detections
-                    for box in results[0].boxes:
-                        class_name = results[0].names[int(box.cls[0])]
-                        if class_name == 'helmet':
-                            with_h_total += 1
-                        elif class_name == 'no helmet':
-                            without_h_total += 1
-                else:
-                    annotated = frame
-
-                # Convert BGR to RGB
-                annotated_rgb = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
-
-                # Display
-                frame_placeholder.image(annotated_rgb, channels="RGB", use_container_width=True)
-
-                # Stats
-                with stats_placeholder.container():
-                    c1, c2, c3 = st.columns(3)
-                    c1.metric("✅ With Helmet", with_h_total)
-                    c2.metric("❌ Without Helmet", without_h_total)
-                    c3.metric("📍 Total Detected", with_h_total + without_h_total)
-
-                # Check stop button
-                if stop_webcam:
-                    break
-
-            cap.release()
-            st.info("📹 Webcam stopped")
-
-    st.markdown("---")
-    st.info("""
-    💡 **Tips Webcam:**
-    - Arahkan ke foto/gambar pengendara motor
-    - Atau test dengan teman yang pakai helm
-    - Jarak optimal: 1-3 meter
-    - Pastikan pencahayaan cukup
-    - Klik STOP untuk berhenti
-    """)
+    st.write("Catatan: Pastikan browser memberikan izin (allow) akses kamera.")
 
 # ============================================================
 # FOOTER
