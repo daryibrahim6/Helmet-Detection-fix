@@ -148,154 +148,63 @@ if detection_mode == "📷 Image":
 # ============================================================
 elif detection_mode == "🎥 Video":
     st.markdown("## 🎥 Video Detection")
-
     uploaded = st.file_uploader("Upload Video", type=['mp4','avi','mov'])
-
+    
     if uploaded:
+        # Simpan video upload ke file sementara
         tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
         tfile.write(uploaded.read())
-        tfile.close()
-
-        st.subheader("📹 Original Video")
-        st.video(tfile.name)
-
-        col1, col2 = st.columns([2,1])
-        with col1:
-            process = st.button("🚀 Process Video", type="primary", use_container_width=True)
-        with col2:
-            skip = st.selectbox("Speed", ["Fast", "Normal", "Quality"])
-
-        if process:
-            progress = st.progress(0)
+        
+        if st.button("🚀 Process Video"):
             status = st.empty()
-
-            # Open video
+            progress = st.progress(0)
+            
             cap = cv2.VideoCapture(tfile.name)
-            total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
             fps = int(cap.get(cv2.CAP_PROP_FPS))
-            w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-            h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-
-            # Temporary output (raw)
-            temp_output = tempfile.NamedTemporaryFile(delete=False, suffix='_temp.avi').name
-
-            # Use XVID codec (more compatible)
+            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            
+            # File sementara untuk hasil mentah (AVI)
+            temp_avi = tempfile.NamedTemporaryFile(delete=False, suffix='.avi').name
             fourcc = cv2.VideoWriter_fourcc(*'XVID')
-            out = cv2.VideoWriter(temp_output, fourcc, fps, (w, h))
-
-            skip_frames = 2 if skip == "Fast" else 1 if skip == "Normal" else 0
-
-            count = with_h = without_h = 0
-
-            status.text("🔄 Processing frames...")
-
+            out = cv2.VideoWriter(temp_avi, fourcc, fps, (640, 360)) # Resize ke 640x360 agar RAM aman
+            
+            count = 0
             while cap.isOpened():
                 ret, frame = cap.read()
-                if not ret:
-                    break
-
+                if not ret: break
+                
+                # Resize & Detect
                 frame = cv2.resize(frame, (640, 360))
-                count += 1
-
-                # Skip frames for speed
-                if skip_frames > 0 and count % (skip_frames + 1) != 0:
-                    out.write(frame)
-                    progress.progress(min(count/total * 0.8, 0.8))
-                    continue
-
-                # Run detection
                 results = model(frame, conf=confidence, verbose=False)
                 annotated_frame = results[0].plot()
+                
                 out.write(annotated_frame)
-
-                # Count detections
-                for box in results[0].boxes:
-                    class_name = results[0].names[int(box.cls[0])]
-                    if class_name == 'helmet':
-                        with_h += 1
-                    elif class_name == 'no helmet':
-                        without_h += 1
-
-                progress.progress(min(count/total * 0.8, 0.8))
-                status.text(f"Processing frame {count}/{total}")
-
+                count += 1
+                progress.progress(count / total_frames)
+                status.text(f"Processing frame {count}/{total_frames}...")
+            
             cap.release()
             out.release()
-
-            # Convert to H264 (browser-compatible)
-            status.text("🔄 Converting video for browser playback...")
-            progress.progress(0.85)
-
-            final_output = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4').name
-
-            try:
-                # Use ffmpeg to convert
-                subprocess.run([
-                    'ffmpeg', '-y', '-i', temp_output,
-                    '-c:v', 'libx264',
-                    '-preset', 'fast',
-                    '-crf', '23',
-                    '-pix_fmt', 'yuv420p',
-                    final_output
-                ], check=True, capture_output=True)
-
-                progress.progress(1.0)
-                status.text("✅ Processing complete!")
-
-            except subprocess.CalledProcessError:
-                # Fallback: just use the temp output
-                st.warning("⚠️ Video conversion skipped (ffmpeg not available)")
-                final_output = temp_output
-                progress.progress(1.0)
-                status.text("✅ Processing complete!")
-
-            st.success("🎉 Video processing completed!")
-
-            # Display results
-            col1, col2 = st.columns(2)
-
-            with col1:
-                st.markdown("### 🎬 Processed Video")
-                st.video(final_output)
-
-            with col2:
-                st.markdown("### 📊 Statistics")
-                st.metric("✅ With Helmet", with_h)
-                st.metric("❌ Without Helmet", without_h)
-
-                total_detections = with_h + without_h
-                if total_detections > 0:
-                    compliance_rate = (with_h / total_detections) * 100
-                    st.metric("📈 Compliance Rate", f"{compliance_rate:.1f}%")
-                    st.progress(compliance_rate / 100)
-
-                st.info(f"📹 Total frames: {total}")
-
-            # Download button
-            st.markdown("---")
-            with open(final_output, 'rb') as f:
-                st.download_button(
-                    label="💾 Download Processed Video",
-                    data=f,
-                    file_name="helmet_detection_result.mp4",
-                    mime="video/mp4",
-                    use_container_width=True
-                )
-
-            # Cleanup temp files
-            try:
-                os.unlink(temp_output)
-            except:
-                pass
-
-    else:
-        st.info("👆 Upload video untuk mulai deteksi")
-        st.markdown("""
-        **Tips:**
-        - Video max 2 menit untuk hasil optimal
-        - Mode "Fast" untuk video panjang
-        - Format: MP4, AVI, MOV
-        """)
+            
+            # --- TAHAP KRUSIAL: KONVERSI KE MP4 (H.264) AGAR BISA DI-PLAY ---
+            status.text("🔄 Mengonversi format agar bisa diputar di browser...")
+            final_mp4 = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4').name
+            
+            # Jalankan FFMPEG
+            cmd = f'ffmpeg -y -i "{temp_avi}" -c:v libx264 -pix_fmt yuv420p "{final_mp4}"'
+            subprocess.run(cmd, shell=True)
+            
+            status.text("✅ Selesai! Menampilkan video...")
+            
+            # Tampilkan Video
+            with open(final_mp4, 'rb') as f:
+                video_bytes = f.read()
+                st.video(video_bytes)
+            
+            # Tombol Download
+            st.download_button("💾 Download Hasil Video", video_bytes, "hasil_deteksi.mp4", "video/mp4")
 
 # ============================================================
 # MODE 3: WEBCAM REAL-TIME
