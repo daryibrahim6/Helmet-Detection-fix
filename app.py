@@ -183,6 +183,7 @@ if detection_mode == "📷 Image":
         st.markdown("## 📊 Detection Statistics")
         
         with_h = without_h = 0
+        compliance = 0.0 
         confidences = []
         detections_list = []
         
@@ -191,6 +192,7 @@ if detection_mode == "📷 Image":
             conf = float(box.conf[0])
             class_name = results[0].names[cls]
             bbox = box.xyxy[0].cpu().numpy()
+            name_check = class_name.lower()
             
             confidences.append(conf)
             detections_list.append({
@@ -200,9 +202,9 @@ if detection_mode == "📷 Image":
                 'bbox': f"({int(bbox[0])}, {int(bbox[1])}, {int(bbox[2])}, {int(bbox[3])})"
             })
             
-            if class_name == ['helmet', 'with helmet']:
+            if name_check in ['helmet', 'with helmet']:
                 with_h += 1
-            elif class_name == ['no helmet', 'without helmet']:
+            elif name_check in ['no helmet', 'without helmet']:
                 without_h += 1
         
         # Metrics cards
@@ -427,11 +429,11 @@ elif detection_mode == "🎥 Video":
                 out.write(annotated_frame)
                 
                 # Count
-                for box in results[0].boxes:
-                    class_name = results[0].names[int(box.cls[0])]
-                    if class_name == ['helmet', 'with helmet']:
+                  for box in results[0].boxes:
+                    class_name = results[0].names[int(box.cls[0])].lower()
+                    if class_name in ['helmet', 'with helmet']:
                         with_h_total += 1
-                    elif class_name == ['no helmet', 'without helmet']:
+                    elif class_name in ['no helmet', 'without helmet']:
                         without_h_total += 1
                 
                 progress_bar.progress(min(frame_count / total_frames * 0.8, 0.8))
