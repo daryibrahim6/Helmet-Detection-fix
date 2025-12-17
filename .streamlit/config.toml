@@ -1,0 +1,10 @@
+[theme]
+primaryColor="#667eea"
+backgroundColor="#1e1e1e"
+secondaryBackgroundColor="#2d2d2d"
+textColor="#ffffff"
+
+[server]
+maxUploadSize=200
+enableCORS=false
+enableXsrfProtection=false
