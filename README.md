@@ -12,7 +12,7 @@ AI-powered motorcycle helmet detection with **REAL-TIME WEBCAM**!
 
 ## 🚀 Live Demo
 
-[Your URL Here]
+https://helmet-detection-fix-2ebqzyn4vabge45zbgg2yj.streamlit.app/
 
 ## 👥 Team
 
